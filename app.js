@@ -1,5 +1,5 @@
 // ===== STATE =====
-const STATE_KEY = 'nessa_star_girl_v1';
+const STATE_KEY = 'nessa_littlestar_v1';
 let state = {
   week: 1,
   ageMonths: 12,
@@ -156,7 +156,7 @@ REQUIREMENTS:
 - Platform links must be real, working URLs`;
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://nessa-api-proxy.tokemi2022.workers.dev/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
