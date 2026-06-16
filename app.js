@@ -161,19 +161,24 @@ REQUIREMENTS:
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
+        max_tokens: 4000,
         messages: [{ role: 'user', content: prompt }]
       })
     });
     const data = await response.json();
-    console.log('API response:', JSON.stringify(data));
+    console.log('API response:', JSON.stringify(data).substring(0, 300));
 
-    if (data.error) throw new Error('API error: ' + data.error);
+    if (data.error) throw new Error('API error: ' + JSON.stringify(data.error));
     if (!data.content) throw new Error('No content in response: ' + JSON.stringify(data));
 
     const text = data.content.map(b => b.text || '').join('');
-    const clean = text.replace(/```json|```/g, '').trim();
-    const activities = JSON.parse(clean);
+
+    // Robust JSON extraction — find the array between [ and ]
+    const start = text.indexOf('[');
+    const end = text.lastIndexOf(']');
+    if (start === -1 || end === -1) throw new Error('No JSON array found in response');
+    const jsonStr = text.substring(start, end + 1);
+    const activities = JSON.parse(jsonStr);
     state.plan = activities.map((a, i) => ({ ...a, id: i, status: 'pending' }));
     saveState();
     renderPlan();
