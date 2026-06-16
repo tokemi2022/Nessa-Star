@@ -1,4 +1,4 @@
-# ⭐ Little Star — Nessa's Development Journey
+# ⭐ Star Girl — Nessa's Development Journey
 
 A personal child development tracker and AI-powered activity planner for Nessa, built for two working parents in Barcelona.
 
