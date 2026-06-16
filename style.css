@@ -210,3 +210,133 @@ button { cursor: pointer; border: none; background: none; }
 .act-materials-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
 .act-materials-list li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); background: var(--yellow-lt); border-radius: var(--r-sm); padding: 8px 12px; }
 .act-materials-list a { color: var(--yellow); font-weight: 600; margin-left: auto; font-size: 12px; }
+
+/* ===== PIN SCREENS ===== */
+#screen-setup, #screen-pin {
+  background: #0A0A14;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+.pin-screen {
+  width: 100%;
+  max-width: 340px;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+.pin-logo {
+  font-size: 52px;
+  margin-bottom: 4px;
+  animation: pulse 2s ease-in-out infinite;
+}
+.pin-avatar-wrap {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--purple-lt);
+  color: var(--purple);
+  font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #C0BAF0;
+  margin-bottom: 4px;
+  overflow: hidden;
+}
+.pin-avatar-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pin-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 26px;
+  color: #FFFFFF;
+  margin: 0;
+}
+.pin-sub {
+  font-size: 14px;
+  color: rgba(255,255,255,0.5);
+  margin: 0;
+}
+.pin-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+.pin-input-field {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: var(--r-lg);
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.08);
+  color: #FFFFFF;
+  font-size: 16px;
+  text-align: center;
+  letter-spacing: 0.2em;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.pin-input-field::placeholder { color: rgba(255,255,255,0.3); letter-spacing: 0.1em; }
+.pin-input-field:focus { border-color: var(--purple); }
+.pin-input-field.big { font-size: 28px; letter-spacing: 0.4em; padding: 16px; }
+.pin-error {
+  color: #FF6B6B;
+  font-size: 13px;
+  background: rgba(255,107,107,0.1);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  width: 100%;
+}
+#screen-setup .btn-primary,
+#screen-pin .btn-primary {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* ===== SETTINGS AVATAR ===== */
+.settings-avatar-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-avatar-wrap {
+  flex-shrink: 0;
+}
+.settings-avatar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.settings-avatar-btn {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--purple);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 0;
+}
+.settings-avatar-btn.danger-text { color: #C0392B; }
+
+/* ===== SETTINGS INLINE INPUT ===== */
+.settings-inline-input {
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 6px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--bg);
+  text-align: right;
+  width: 140px;
+  outline: none;
+}
+.settings-inline-input:focus { border-color: var(--purple); }

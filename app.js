@@ -1,53 +1,192 @@
 // ===== STATE =====
-const STATE_KEY = 'nessa_littlestar_v1';
+const STATE_KEY = 'nessa_littlestar_v2';
 let state = {
+  // App meta
+  pin: null,               // 4-digit PIN string or null if not set
+  pinVerified: false,      // session-only: don't persist
+
+  // Child profile
+  childName: 'Nessa',
+  childAvatar: null,       // base64 photo or null
+  startDate: null,         // ISO date when Week 1 began
+
+  // Parents (scalable: array)
+  parents: [
+    { id: 'parent1', name: 'Mama', avatar: null },
+    { id: 'parent2', name: 'Papa', avatar: null },
+  ],
+
+  // Week/age (computed from startDate at runtime)
   week: 1,
   ageMonths: 12,
+
   stats: { done: 0, milestones: 0, words: 14, streak: 0 },
   domains: [
-    { id: 'cognitive', name: 'Cognitive', icon: 'ti-brain', color: '#534AB7', bg: '#EEEDFE', pct: 0, last: 'Not started yet' },
-    { id: 'language', name: 'Language & Signs', icon: 'ti-message-circle', color: '#1D9E75', bg: '#E1F5EE', pct: 0, last: 'Not started yet' },
-    { id: 'emotional', name: 'Emotional Intelligence', icon: 'ti-heart', color: '#D85A30', bg: '#FAECE7', pct: 0, last: 'Not started yet' },
-    { id: 'physical', name: 'Physical & Motor', icon: 'ti-run', color: '#639922', bg: '#EAF3DE', pct: 0, last: 'Not started yet' },
-    { id: 'creativity', name: 'Creativity & Arts', icon: 'ti-palette', color: '#BA7517', bg: '#FAEEDA', pct: 0, last: 'Not started yet' },
-    { id: 'social', name: 'Social & Character', icon: 'ti-users', color: '#185FA5', bg: '#E6F1FB', pct: 0, last: 'Not started yet' },
-    { id: 'cultural', name: 'Cultural Identity', icon: 'ti-world', color: '#0F7B6C', bg: '#E0F4F1', pct: 0, last: 'Not started yet' },
+    { id: 'cognitive',  name: 'Cognitive',            icon: 'ti-brain',          color: '#534AB7', bg: '#EEEDFE', pct: 0, last: 'Not started yet' },
+    { id: 'language',   name: 'Language & Signs',      icon: 'ti-message-circle', color: '#1D9E75', bg: '#E1F5EE', pct: 0, last: 'Not started yet' },
+    { id: 'emotional',  name: 'Emotional Intelligence',icon: 'ti-heart',          color: '#D85A30', bg: '#FAECE7', pct: 0, last: 'Not started yet' },
+    { id: 'physical',   name: 'Physical & Motor',      icon: 'ti-run',            color: '#639922', bg: '#EAF3DE', pct: 0, last: 'Not started yet' },
+    { id: 'creativity', name: 'Creativity & Arts',     icon: 'ti-palette',        color: '#BA7517', bg: '#FAEEDA', pct: 0, last: 'Not started yet' },
+    { id: 'social',     name: 'Social & Character',    icon: 'ti-users',          color: '#185FA5', bg: '#E6F1FB', pct: 0, last: 'Not started yet' },
+    { id: 'cultural',   name: 'Cultural Identity',     icon: 'ti-world',          color: '#0F7B6C', bg: '#E0F4F1', pct: 0, last: 'Not started yet' },
   ],
   milestones: [],
   moments: [],
   plan: [],
-  weekHistory: [], // [{week, done, total}]
-  currentActivityIdx: null,
+  weekHistory: [],
 };
 
+// ===== PERSIST =====
 function saveState() {
-  try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch(e) {}
+  try {
+    const toSave = { ...state, pinVerified: false }; // never persist session flag
+    localStorage.setItem(STATE_KEY, JSON.stringify(toSave));
+  } catch(e) {}
 }
 function loadState() {
   try {
     const s = localStorage.getItem(STATE_KEY);
-    if (s) state = { ...state, ...JSON.parse(s) };
+    if (s) {
+      const loaded = JSON.parse(s);
+      state = { ...state, ...loaded, pinVerified: false };
+      // Ensure parents array exists (migration)
+      if (!state.parents) state.parents = [
+        { id: 'parent1', name: 'Mama', avatar: null },
+        { id: 'parent2', name: 'Papa', avatar: null },
+      ];
+    }
   } catch(e) {}
+}
+
+// ===== AUTOMATIC WEEK PROGRESSION =====
+function computeCurrentWeek() {
+  if (!state.startDate) {
+    // First launch — set start date to today
+    state.startDate = new Date().toISOString();
+    saveState();
+  }
+  const start = new Date(state.startDate);
+  const now = new Date();
+  const daysDiff = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+  const computedWeek = Math.min(Math.floor(daysDiff / 7) + 1, 104); // supports Year 1 + Year 2
+  const computedAge = 12 + Math.floor((computedWeek - 1) / 4.33);
+
+  // Auto-archive completed week when week changes
+  if (computedWeek > state.week) {
+    for (let w = state.week; w < computedWeek; w++) {
+      const alreadyArchived = state.weekHistory.find(h => h.weekNum === w);
+      if (!alreadyArchived) {
+        state.weekHistory.push({
+          weekNum: w,
+          week: `Wk${w}`,
+          done: w === state.week ? state.stats.done : 0,
+          total: 5,
+        });
+      }
+    }
+    state.week = computedWeek;
+    state.ageMonths = computedAge;
+    state.stats.done = 0;
+    state.plan = state.plan.filter(a => a.status === 'pending'); // carry over incomplete
+    saveState();
+  } else {
+    state.week = computedWeek;
+    state.ageMonths = computedAge;
+  }
+}
+
+// ===== PIN SYSTEM =====
+function initApp() {
+  loadState();
+  computeCurrentWeek();
+
+  if (!state.pin) {
+    // First time — go to setup
+    showScreen('setup');
+  } else if (!state.pinVerified) {
+    showScreen('pin');
+  } else {
+    showScreen('home');
+  }
+}
+
+function submitSetupPIN() {
+  const p1 = document.getElementById('setup-pin1').value;
+  const p2 = document.getElementById('setup-pin2').value;
+  if (p1.length !== 4 || !/^\d{4}$/.test(p1)) {
+    showPinError('setup-error', 'PIN must be exactly 4 digits'); return;
+  }
+  if (p1 !== p2) {
+    showPinError('setup-error', 'PINs do not match'); return;
+  }
+  state.pin = p1;
+  state.pinVerified = true;
+  saveState();
+  showScreen('home');
+}
+
+function submitPIN() {
+  const entered = document.getElementById('pin-input').value;
+  if (entered === state.pin) {
+    state.pinVerified = true;
+    document.getElementById('pin-input').value = '';
+    showScreen('home');
+  } else {
+    showPinError('pin-error', 'Incorrect PIN. Try again.');
+    document.getElementById('pin-input').value = '';
+  }
+}
+
+function showPinError(id, msg) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+}
+
+function changePin() {
+  const current = document.getElementById('change-pin-current').value;
+  const newPin = document.getElementById('change-pin-new').value;
+  const confirm = document.getElementById('change-pin-confirm').value;
+  if (current !== state.pin) { showPinError('change-pin-error', 'Current PIN is incorrect'); return; }
+  if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) { showPinError('change-pin-error', 'New PIN must be 4 digits'); return; }
+  if (newPin !== confirm) { showPinError('change-pin-error', 'New PINs do not match'); return; }
+  state.pin = newPin;
+  saveState();
+  closeModal('modal-change-pin');
+  alert('PIN changed successfully!');
 }
 
 // ===== NAVIGATION =====
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById('screen-' + id).classList.add('active');
+  const screen = document.getElementById('screen-' + id);
+  if (screen) screen.classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   const nb = document.querySelector(`[data-screen="${id}"]`);
   if (nb) nb.classList.add('active');
   const bottomNav = document.getElementById('bottom-nav');
-  bottomNav.style.display = id === 'splash' ? 'none' : 'flex';
+  const noNav = ['splash','pin','setup'];
+  bottomNav.style.display = noNav.includes(id) ? 'none' : 'flex';
   if (id === 'home') renderHome();
   if (id === 'progress') renderProgress();
   if (id === 'moments') renderMoments();
-  if (id === 'plan' && state.plan.length === 0) {}
+  if (id === 'settings') renderSettings();
+}
+
+// ===== AVATAR HELPERS =====
+function getAvatarHTML(size = 42) {
+  if (state.childAvatar) {
+    return `<img src="${state.childAvatar}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;border:1.5px solid #C0BAF0;" alt="${state.childName}" />`;
+  }
+  return `<div class="avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.4)}px">${state.childName.charAt(0)}</div>`;
 }
 
 // ===== HOME =====
 function renderHome() {
-  document.getElementById('home-meta').textContent = `Age ${state.ageMonths} months · Week ${state.week}`;
+  document.getElementById('home-meta').textContent = `Age ${state.ageMonths} months · Week ${state.week} of 52`;
+  const avatarEl = document.getElementById('home-avatar');
+  if (avatarEl) avatarEl.innerHTML = getAvatarHTML(42);
+  const nameEl = document.getElementById('home-child-name');
+  if (nameEl) nameEl.textContent = `${state.childName} 💝`;
   document.getElementById('stat-done').textContent = state.stats.done;
   document.getElementById('stat-milestones').textContent = state.stats.milestones;
   document.getElementById('stat-words').textContent = state.stats.words;
@@ -82,8 +221,6 @@ function renderRecentMilestones() {
     el.innerHTML = `<div class="empty-state"><i class="ti ti-stars"></i><p>No milestones yet.<br>Generate a plan and start tracking!</p></div>`;
     return;
   }
-  const domainColors = {};
-  state.domains.forEach(d => { domainColors[d.id] = d; });
   el.innerHTML = recent.map(m => {
     const d = state.domains.find(x => x.id === m.domain.toLowerCase()) || state.domains[0];
     return `
@@ -108,16 +245,21 @@ async function generatePlan() {
   document.getElementById('plan-list').innerHTML = '';
   document.getElementById('plan-loading').style.display = 'flex';
 
-  const curriculumContext = CURRICULUM.getAIPromptContext(state.week, state.ageMonths);
+  const curriculumContext = typeof CURRICULUM !== 'undefined'
+    ? CURRICULUM.getAIPromptContext(state.week, state.ageMonths)
+    : `Week ${state.week}, Age ${state.ageMonths} months`;
 
-  const prompt = `You are a child development expert and Nessa's personal development coach. Generate a 5-activity weekly plan using the curriculum context below.
+  const parent1 = state.parents[0]?.name || 'Mama';
+  const parent2 = state.parents[1]?.name || 'Papa';
+
+  const prompt = `You are a child development expert and ${state.childName}'s personal development coach. Generate a 5-activity weekly plan using the curriculum context below.
 
 ${curriculumContext}
 
-ABOUT NESSA:
+ABOUT ${state.childName.toUpperCase()}:
 - Age: ${state.ageMonths} months | Week ${state.week} of her 52-week journey
 - Location: Barcelona, Spain
-- Home languages: English and Yoruba (parents)
+- Home languages: English and Yoruba (parents: ${parent1} and ${parent2})
 - School languages: Spanish and Catalan
 - Already uses sign language and is developing very well
 - Parents are working professionals — activities must be realistic and joyful
@@ -148,7 +290,7 @@ Return ONLY a valid JSON array (no markdown, no explanation) with exactly 5 obje
 REQUIREMENTS:
 - Cover at least 5 different domains across the 5 activities
 - Include at least 1 Yoruba language activity
-- Include at least 1 sign language activity  
+- Include at least 1 sign language activity
 - Include at least 1 physical/motor activity
 - Weekend activities should be slightly richer and longer
 - All activities must be appropriate for ${state.ageMonths} months
@@ -166,29 +308,22 @@ REQUIREMENTS:
       })
     });
     const data = await response.json();
-    console.log('API response:', JSON.stringify(data).substring(0, 300));
-
     if (data.error) throw new Error('API error: ' + JSON.stringify(data.error));
-    if (!data.content) throw new Error('No content in response: ' + JSON.stringify(data));
-
+    if (!data.content) throw new Error('No content in response');
     const text = data.content.map(b => b.text || '').join('');
-
-    // Robust JSON extraction — find the array between [ and ]
     const start = text.indexOf('[');
     const end = text.lastIndexOf(']');
     if (start === -1 || end === -1) throw new Error('No JSON array found in response');
-    const jsonStr = text.substring(start, end + 1);
-    const activities = JSON.parse(jsonStr);
+    const activities = JSON.parse(text.substring(start, end + 1));
     state.plan = activities.map((a, i) => ({ ...a, id: i, status: 'pending' }));
     saveState();
     renderPlan();
   } catch (e) {
-    console.error('Plan generation error:', e.message);
     document.getElementById('plan-loading').style.display = 'none';
     document.getElementById('plan-empty').style.display = 'flex';
     document.getElementById('plan-empty').innerHTML = `
       <i class="ti ti-alert-circle" style="color:#D85A30"></i>
-      <p>Error: ${e.message}</p>
+      <p>Couldn't generate plan.<br><small>${e.message}</small></p>
       <button class="btn-primary" style="margin-top:16px" onclick="generatePlan()"><i class="ti ti-refresh"></i> Try again</button>
     `;
   }
@@ -197,16 +332,21 @@ REQUIREMENTS:
 function renderPlan() {
   document.getElementById('plan-loading').style.display = 'none';
   document.getElementById('plan-empty').style.display = 'none';
-  document.getElementById('plan-week-label').textContent = `Week ${state.week} · Age ${state.ageMonths} months`;
+
+  // Week progress indicator
+  const weekStart = new Date(state.startDate);
+  weekStart.setDate(weekStart.getDate() + (state.week - 1) * 7);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  const daysLeft = Math.max(0, Math.ceil((weekEnd - new Date()) / (1000*60*60*24)));
+
+  document.getElementById('plan-week-label').textContent = `Week ${state.week} · Age ${state.ageMonths} months · ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`;
 
   const grouped = {};
   state.plan.forEach(a => {
     if (!grouped[a.day]) grouped[a.day] = [];
     grouped[a.day].push(a);
   });
-
-  const domainColors = {};
-  state.domains.forEach(d => { domainColors[d.id] = d; });
 
   let html = '';
   const dayOrder = ['Monday Evening','Tuesday Evening','Wednesday Evening','Thursday Evening','Friday Evening','Saturday','Sunday'];
@@ -215,7 +355,7 @@ function renderPlan() {
   days.forEach(day => {
     html += `<div class="plan-day"><div class="plan-day-label">${day}</div>`;
     grouped[day].forEach(act => {
-      const dom = domainColors[act.domain] || state.domains[0];
+      const dom = state.domains.find(d => d.id === act.domain) || state.domains[0];
       const statusIcon = act.status === 'done' ? '✅' : act.status === 'skipped' ? '⏭️' : '';
       html += `
         <div class="plan-card ${act.status}" onclick="openActivity(${act.id})">
@@ -270,7 +410,7 @@ function openActivity(id) {
     </div>
     <div class="act-detail-section">
       <h4>Parent tip</h4>
-      <p>${act.tip || 'Keep it light and follow Nessa\'s lead!'}</p>
+      <p>${act.tip || "Keep it light and follow ${state.childName}'s lead!"}</p>
     </div>
     <div class="act-detail-section">
       <h4>Domain</h4>
@@ -297,17 +437,12 @@ function markActivity(status) {
 
 function quickMark(id, status) {
   const act = state.plan.find(a => a.id === id);
-  if (!act) return;
+  if (!act || act.status !== 'pending') return;
   act.status = status;
   if (status === 'done') {
     state.stats.done++;
-    // Update domain progress
     const dom = state.domains.find(d => d.id === act.domain);
-    if (dom) {
-      dom.pct = Math.min(100, dom.pct + 14);
-      dom.last = act.title;
-    }
-    // Update streak
+    if (dom) { dom.pct = Math.min(100, dom.pct + 14); dom.last = act.title; }
     state.stats.streak++;
   }
   saveState();
@@ -319,10 +454,10 @@ function openMilestoneFromActivity(id) {
   const act = state.plan.find(a => a.id === id);
   if (act) {
     document.getElementById('ms-title').value = act.title;
-    const domSelect = document.getElementById('ms-domain');
     const domMap = { cognitive:'Cognitive', language:'Language', emotional:'Emotional', physical:'Physical', creativity:'Creativity', social:'Social', cultural:'Cultural' };
-    domSelect.value = domMap[act.domain] || 'Language';
+    document.getElementById('ms-domain').value = domMap[act.domain] || 'Language';
   }
+  populateParentSelects();
   document.getElementById('modal-milestone').style.display = 'flex';
 }
 
@@ -330,15 +465,14 @@ function openMilestoneFromActivity(id) {
 function saveMilestone() {
   const title = document.getElementById('ms-title').value.trim();
   if (!title) { alert('Please add a milestone title'); return; }
-  const m = {
+  state.milestones.push({
     id: Date.now(),
     title,
     domain: document.getElementById('ms-domain').value,
     parent: document.getElementById('ms-parent').value,
     notes: document.getElementById('ms-notes').value.trim(),
     date: new Date().toISOString(),
-  };
-  state.milestones.push(m);
+  });
   state.stats.milestones++;
   saveState();
   closeModal('modal-milestone');
@@ -349,6 +483,7 @@ function saveMilestone() {
 
 // ===== MOMENTS =====
 function openAddMoment() {
+  populateParentSelects();
   document.getElementById('modal-moment').style.display = 'flex';
 }
 
@@ -376,27 +511,18 @@ function saveMoment() {
     const reader = new FileReader();
     reader.onload = e => save(e.target.result);
     reader.readAsDataURL(file);
-  } else {
-    save(null);
-  }
+  } else { save(null); }
 }
 
 function renderMoments() {
   const grid = document.getElementById('moments-grid');
   const empty = document.getElementById('moments-empty');
-  if (state.moments.length === 0) {
-    grid.innerHTML = '';
-    empty.style.display = 'flex';
-    return;
-  }
+  if (state.moments.length === 0) { grid.innerHTML = ''; empty.style.display = 'flex'; return; }
   empty.style.display = 'none';
   const emojis = ['🌟','💝','🎉','✨','🌈','🦋','🌸','🎈'];
   grid.innerHTML = [...state.moments].reverse().map((m, i) => `
     <div class="moment-card">
-      ${m.photo
-        ? `<img src="${m.photo}" class="moment-img" alt="${m.caption}" />`
-        : `<div class="moment-img">${emojis[i % emojis.length]}</div>`
-      }
+      ${m.photo ? `<img src="${m.photo}" class="moment-img" alt="${m.caption}" />` : `<div class="moment-img">${emojis[i % emojis.length]}</div>`}
       <div class="moment-body">
         <div class="moment-caption">${m.caption}</div>
         <div class="moment-meta">${m.parent} · ${formatDate(m.date)}</div>
@@ -408,15 +534,11 @@ function renderMoments() {
 
 // ===== PROGRESS =====
 function renderProgress() {
-  // Domains
   const el = document.getElementById('progress-domains');
   el.innerHTML = state.domains.map(d => `
     <div class="prog-domain">
       <div class="prog-domain-header">
-        <div class="prog-domain-name">
-          <i class="ti ${d.icon}" style="color:${d.color}"></i>
-          ${d.name}
-        </div>
+        <div class="prog-domain-name"><i class="ti ${d.icon}" style="color:${d.color}"></i> ${d.name}</div>
         <div class="prog-domain-pct" style="color:${d.color}">${d.pct}%</div>
       </div>
       <div class="progress-bar" style="height:6px">
@@ -425,32 +547,18 @@ function renderProgress() {
     </div>
   `).join('');
 
-  // Bar chart
   const weeks = state.weekHistory.length > 0
     ? state.weekHistory.slice(-4)
-    : [
-        { week: 'Wk1', done: 0, total: 5 },
-        { week: 'Wk2', done: 0, total: 5 },
-        { week: 'Wk3', done: 0, total: 5 },
-        { week: `Wk${state.week}`, done: state.stats.done, total: 5 },
-      ];
+    : [{ week: 'Wk1', done: 0, total: 5 },{ week: 'Wk2', done: 0, total: 5 },{ week: 'Wk3', done: 0, total: 5 },{ week: `Wk${state.week}`, done: state.stats.done, total: 5 }];
   const maxDone = Math.max(...weeks.map(w => w.total), 1);
   document.getElementById('completion-chart').innerHTML = `
     <div class="bar-chart">
       ${weeks.map(w => {
         const h = Math.max(4, Math.round((w.done / maxDone) * 70));
-        return `
-          <div class="bar-col">
-            <div class="bar-val">${w.done}/${w.total}</div>
-            <div class="bar" style="height:${h}px;background:${w.done === w.total ? '#1D9E75' : '#534AB7'}"></div>
-            <div class="bar-label">${w.week || 'Wk'}</div>
-          </div>
-        `;
+        return `<div class="bar-col"><div class="bar-val">${w.done}/${w.total}</div><div class="bar" style="height:${h}px;background:${w.done === w.total ? '#1D9E75' : '#534AB7'}"></div><div class="bar-label">${w.week || 'Wk'}</div></div>`;
       }).join('')}
-    </div>
-  `;
+    </div>`;
 
-  // All milestones
   const allMs = document.getElementById('all-milestones');
   if (state.milestones.length === 0) {
     allMs.innerHTML = `<div class="empty-state" style="padding:24px"><i class="ti ti-stars"></i><p>No milestones yet</p></div>`;
@@ -459,17 +567,84 @@ function renderProgress() {
   allMs.innerHTML = `<div class="milestone-list">` +
     [...state.milestones].reverse().map(m => {
       const d = state.domains.find(x => x.id === m.domain.toLowerCase()) || state.domains[0];
-      return `
-        <div class="milestone-card">
-          <div class="ms-dot" style="background:${d.color}"></div>
-          <div>
-            <div class="ms-title">${m.title}</div>
-            <div class="ms-meta">${d.name} · ${formatDate(m.date)} · ${m.parent}</div>
-            ${m.notes ? `<div class="ms-meta" style="margin-top:4px">${m.notes}</div>` : ''}
-          </div>
-        </div>
-      `;
+      return `<div class="milestone-card"><div class="ms-dot" style="background:${d.color}"></div><div><div class="ms-title">${m.title}</div><div class="ms-meta">${d.name} · ${formatDate(m.date)} · ${m.parent}</div>${m.notes ? `<div class="ms-meta" style="margin-top:4px">${m.notes}</div>` : ''}</div></div>`;
     }).join('') + `</div>`;
+}
+
+// ===== SETTINGS =====
+function renderSettings() {
+  // Avatar
+  const avatarWrap = document.getElementById('settings-avatar-wrap');
+  if (avatarWrap) avatarWrap.innerHTML = getAvatarHTML(72);
+
+  // Child name
+  const nameEl = document.getElementById('settings-child-name');
+  if (nameEl) nameEl.value = state.childName;
+
+  // Week info
+  const phase = typeof CURRICULUM !== 'undefined' ? CURRICULUM.getPhaseForWeek(state.week) : { phase: 1, title: 'Explorer' };
+  const weekEl = document.getElementById('settings-week');
+  const phaseEl = document.getElementById('settings-phase');
+  const ageEl = document.getElementById('settings-age');
+  const startEl = document.getElementById('settings-start');
+  if (weekEl) weekEl.textContent = `Week ${state.week} of 52`;
+  if (phaseEl) phaseEl.textContent = `Phase ${phase.phase} — ${phase.title}`;
+  if (ageEl) ageEl.textContent = `${state.ageMonths} months`;
+  if (startEl) startEl.textContent = state.startDate ? new Date(state.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Not set';
+
+  // Parents
+  const p1 = document.getElementById('settings-parent1-name');
+  const p2 = document.getElementById('settings-parent2-name');
+  if (p1) p1.value = state.parents[0]?.name || 'Mama';
+  if (p2) p2.value = state.parents[1]?.name || 'Papa';
+}
+
+function saveChildName() {
+  const val = document.getElementById('settings-child-name').value.trim();
+  if (val) { state.childName = val; saveState(); renderHome(); }
+}
+
+function saveParentNames() {
+  const p1 = document.getElementById('settings-parent1-name').value.trim();
+  const p2 = document.getElementById('settings-parent2-name').value.trim();
+  if (p1) state.parents[0].name = p1;
+  if (p2) state.parents[1].name = p2;
+  saveState();
+  populateParentSelects();
+  alert('Parent names saved!');
+}
+
+function uploadAvatar() {
+  document.getElementById('avatar-file-input').click();
+}
+
+function handleAvatarUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    state.childAvatar = e.target.result;
+    saveState();
+    renderSettings();
+    renderHome();
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeAvatar() {
+  state.childAvatar = null;
+  saveState();
+  renderSettings();
+  renderHome();
+}
+
+function populateParentSelects() {
+  ['ms-parent','moment-parent'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel) {
+      sel.innerHTML = state.parents.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+    }
+  });
 }
 
 // ===== MODALS =====
@@ -489,35 +664,11 @@ function formatDate(iso) {
 }
 
 function resetAll() {
-  localStorage.removeItem(STATE_KEY);
-  location.reload();
-}
-
-function advanceWeek() {
-  if (state.week >= 52) { alert('Year 1 complete! 🎉 Year 2 curriculum coming soon.'); return; }
-  // Save this week's stats to history
-  state.weekHistory.push({ week: `Wk${state.week}`, done: state.stats.done, total: 5 });
-  state.week++;
-  state.ageMonths = 12 + Math.floor((state.week - 1) / 4.33);
-  state.stats.done = 0;
-  state.plan = [];
-  saveState();
-  renderSettingsInfo();
-  alert(`Advanced to Week ${state.week}! Generate a new plan in the Plan tab.`);
-}
-
-function renderSettingsInfo() {
-  const phase = CURRICULUM.getPhaseForWeek(state.week);
-  const weekEl = document.getElementById('settings-week');
-  const phaseEl = document.getElementById('settings-phase');
-  const ageEl = document.getElementById('settings-age');
-  if (weekEl) weekEl.textContent = `Week ${state.week} of 52`;
-  if (phaseEl) phaseEl.textContent = `Phase ${phase.phase} — ${phase.title}`;
-  if (ageEl) ageEl.textContent = `${state.ageMonths} months`;
+  if (confirm('This will delete ALL data including milestones, moments and progress. Are you sure?')) {
+    localStorage.removeItem(STATE_KEY);
+    location.reload();
+  }
 }
 
 // ===== INIT =====
-loadState();
-renderHome();
-renderSettingsInfo();
-if (state.plan.length > 0) renderPlan();
+initApp();
