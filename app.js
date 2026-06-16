@@ -166,6 +166,11 @@ REQUIREMENTS:
       })
     });
     const data = await response.json();
+    console.log('API response:', JSON.stringify(data));
+
+    if (data.error) throw new Error('API error: ' + data.error);
+    if (!data.content) throw new Error('No content in response: ' + JSON.stringify(data));
+
     const text = data.content.map(b => b.text || '').join('');
     const clean = text.replace(/```json|```/g, '').trim();
     const activities = JSON.parse(clean);
@@ -173,11 +178,12 @@ REQUIREMENTS:
     saveState();
     renderPlan();
   } catch (e) {
+    console.error('Plan generation error:', e.message);
     document.getElementById('plan-loading').style.display = 'none';
     document.getElementById('plan-empty').style.display = 'flex';
     document.getElementById('plan-empty').innerHTML = `
       <i class="ti ti-alert-circle" style="color:#D85A30"></i>
-      <p>Couldn't generate plan. Check your connection and try again.</p>
+      <p>Error: ${e.message}</p>
       <button class="btn-primary" style="margin-top:16px" onclick="generatePlan()"><i class="ti ti-refresh"></i> Try again</button>
     `;
   }
