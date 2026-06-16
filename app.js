@@ -1,5 +1,5 @@
 // ===== STATE =====
-const STATE_KEY = 'nessa_littlestar_v1';
+const STATE_KEY = 'nessa_star_girl_v1';
 let state = {
   week: 1,
   ageMonths: 12,
