@@ -219,7 +219,14 @@
           </div>
         </div>
         <div class="section">
-          <div class="section-label">Data</div>
+          <div class="section-label">Week progression</div>
+          <div class="settings-card">
+            <div class="settings-row"><span>Current week</span><strong id="settings-week">Week 1 of 52</strong></div>
+            <div class="settings-row"><span>Current phase</span><strong id="settings-phase">Phase 1 — The Explorer</strong></div>
+            <div class="settings-row"><span>Age</span><strong id="settings-age">12 months</strong></div>
+            <button class="settings-btn" onclick="advanceWeek()"><i class="ti ti-arrow-right"></i> Advance to next week</button>
+          </div>
+        </div>
           <div class="settings-card">
             <button class="settings-btn danger" onclick="if(confirm('Reset all data?'))resetAll()">Reset all data</button>
           </div>
@@ -306,6 +313,7 @@
     </div>
   </div>
 
+  <script src="curriculum.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

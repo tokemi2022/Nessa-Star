@@ -108,11 +108,23 @@ async function generatePlan() {
   document.getElementById('plan-list').innerHTML = '';
   document.getElementById('plan-loading').style.display = 'flex';
 
-  const prompt = `You are a child development expert. Generate a 5-activity weekly plan for Nessa, a ${state.ageMonths}-month-old baby girl in Barcelona, Spain.
+  const curriculumContext = CURRICULUM.getAIPromptContext(state.week, state.ageMonths);
 
-Her parents speak English and Yoruba at home. At school she hears Spanish and Catalan. She already uses sign language and is developing well.
+  const prompt = `You are a child development expert and Nessa's personal development coach. Generate a 5-activity weekly plan using the curriculum context below.
 
-Schedule: 3 weekday evening activities (10-15 mins, low setup) and 2 weekend activities (20-30 mins, can involve materials).
+${curriculumContext}
+
+ABOUT NESSA:
+- Age: ${state.ageMonths} months | Week ${state.week} of her 52-week journey
+- Location: Barcelona, Spain
+- Home languages: English and Yoruba (parents)
+- School languages: Spanish and Catalan
+- Already uses sign language and is developing very well
+- Parents are working professionals — activities must be realistic and joyful
+
+SCHEDULE RULES:
+- 3 weekday evening activities: 10–15 mins, low setup, can be done during or after dinner/bath
+- 2 weekend activities: 20–30 mins, can involve materials or outings in Barcelona
 
 Return ONLY a valid JSON array (no markdown, no explanation) with exactly 5 objects:
 [
@@ -120,20 +132,28 @@ Return ONLY a valid JSON array (no markdown, no explanation) with exactly 5 obje
     "day": "Monday Evening" | "Tuesday Evening" | "Wednesday Evening" | "Thursday Evening" | "Friday Evening" | "Saturday" | "Sunday",
     "title": "Activity name",
     "domain": "cognitive" | "language" | "emotional" | "physical" | "creativity" | "social" | "cultural",
-    "duration": "10-15 mins",
-    "emoji": "single emoji",
-    "description": "Clear 2-sentence description of exactly what parent and baby do together",
+    "duration": "10-15 mins" or "20-30 mins",
+    "emoji": "single relevant emoji",
+    "description": "Clear 2-sentence description of exactly what parent and baby do together. Be specific and practical.",
     "language": "English" | "Yoruba" | "Spanish" | "Catalan" | "All",
-    "tip": "One practical tip for working parents",
-    "platformLink": "https://... (real URL to a free resource, YouTube video, or platform relevant to this activity)",
-    "platformName": "Name of the platform/resource",
+    "tip": "One practical tip for working parents doing this after a long day",
+    "platformLink": "https://... (real URL — YouTube video, free app, or resource directly relevant to this activity)",
+    "platformName": "Name of the platform or resource",
     "materials": [
-      {"name": "Material name", "link": "https://amazon.es/... or similar real buy link", "required": true | false}
+      {"name": "Specific material name", "link": "https://www.amazon.es/s?k=... (real search URL)", "required": true | false}
     ]
   }
 ]
 
-Make the activities developmentally appropriate for ${state.ageMonths} months. Include at least one Yoruba language activity, one sign language activity, and one physical/motor activity. Materials should be purchasable in Spain (prefer amazon.es links). Platform links should be real, working URLs.`;
+REQUIREMENTS:
+- Cover at least 5 different domains across the 5 activities
+- Include at least 1 Yoruba language activity
+- Include at least 1 sign language activity  
+- Include at least 1 physical/motor activity
+- Weekend activities should be slightly richer and longer
+- All activities must be appropriate for ${state.ageMonths} months
+- Materials purchasable in Spain (amazon.es preferred)
+- Platform links must be real, working URLs`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -462,7 +482,31 @@ function resetAll() {
   location.reload();
 }
 
+function advanceWeek() {
+  if (state.week >= 52) { alert('Year 1 complete! 🎉 Year 2 curriculum coming soon.'); return; }
+  // Save this week's stats to history
+  state.weekHistory.push({ week: `Wk${state.week}`, done: state.stats.done, total: 5 });
+  state.week++;
+  state.ageMonths = 12 + Math.floor((state.week - 1) / 4.33);
+  state.stats.done = 0;
+  state.plan = [];
+  saveState();
+  renderSettingsInfo();
+  alert(`Advanced to Week ${state.week}! Generate a new plan in the Plan tab.`);
+}
+
+function renderSettingsInfo() {
+  const phase = CURRICULUM.getPhaseForWeek(state.week);
+  const weekEl = document.getElementById('settings-week');
+  const phaseEl = document.getElementById('settings-phase');
+  const ageEl = document.getElementById('settings-age');
+  if (weekEl) weekEl.textContent = `Week ${state.week} of 52`;
+  if (phaseEl) phaseEl.textContent = `Phase ${phase.phase} — ${phase.title}`;
+  if (ageEl) ageEl.textContent = `${state.ageMonths} months`;
+}
+
 // ===== INIT =====
 loadState();
 renderHome();
+renderSettingsInfo();
 if (state.plan.length > 0) renderPlan();
